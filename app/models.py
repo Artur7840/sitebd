@@ -14,10 +14,11 @@ class Organizer(Base):
 
     events = relationship("Event", back_populates="organizer")
 
+
 class EventVersion(Base):
     __tablename__ = "event_versions"
     id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False)  # <-- добавлен каскад
     version_number = Column(Integer, nullable=False)
     description_text = Column(Text, nullable=False)
     changed_at = Column(TIMESTAMP, default=func.now())
@@ -25,7 +26,8 @@ class EventVersion(Base):
 
     __table_args__ = (UniqueConstraint("event_id", "version_number"),)
 
-    event = relationship("Event", foreign_keys=[event_id], back_populates="versions")
+    event = relationship("Event", foreign_keys=[event_id], back_populates="versions", passive_deletes=True)
+
 
 class Event(Base):
     __tablename__ = "events"
@@ -43,8 +45,14 @@ class Event(Base):
 
     organizer = relationship("Organizer", back_populates="events")
     parent = relationship("Event", remote_side=[id], backref="children")
-    versions = relationship("EventVersion", foreign_keys=[EventVersion.event_id], back_populates="event")
+    versions = relationship(
+        "EventVersion",
+        foreign_keys=[EventVersion.event_id],
+        back_populates="event",
+        cascade="all, delete-orphan"           # <-- удаление версий при удалении мероприятия
+    )
     current_version = relationship("EventVersion", foreign_keys=[current_version_id])
+
 
 class Seminar(Base):
     __tablename__ = "seminars"
@@ -54,6 +62,7 @@ class Seminar(Base):
 
     event = relationship("Event")
 
+
 class Conference(Base):
     __tablename__ = "conferences"
     event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), primary_key=True)
@@ -61,6 +70,7 @@ class Conference(Base):
     deadline = Column(Date)
 
     event = relationship("Event")
+
 
 class CorporateEvent(Base):
     __tablename__ = "corporate_events"
@@ -70,6 +80,7 @@ class CorporateEvent(Base):
 
     event = relationship("Event")
 
+
 class Participant(Base):
     __tablename__ = "participants"
     id = Column(Integer, primary_key=True, index=True)
@@ -77,6 +88,7 @@ class Participant(Base):
     phone = Column(String(20), nullable=False)
     role = Column(String(50), nullable=False)
     created_at = Column(TIMESTAMP, default=func.now())
+
 
 class EventParticipant(Base):
     __tablename__ = "event_participants"
@@ -87,12 +99,14 @@ class EventParticipant(Base):
 
     __table_args__ = (UniqueConstraint("event_id", "participant_id"),)
 
+
 class Venue(Base):
     __tablename__ = "venues"
     id = Column(Integer, primary_key=True, index=True)
     address = Column(String(500), nullable=False)
     description = Column(String(500))
     capacity = Column(Integer, nullable=False)
+
 
 class Schedule(Base):
     __tablename__ = "schedule"
@@ -104,6 +118,7 @@ class Schedule(Base):
     end_time = Column(TIMESTAMP, nullable=False)
     description = Column(String(500))
 
+
 class Equipment(Base):
     __tablename__ = "equipment"
     id = Column(Integer, primary_key=True, index=True)
@@ -111,10 +126,11 @@ class Equipment(Base):
     status = Column(String(50), nullable=False)
     last_check_date = Column(Date, nullable=False)
 
+
 class EventEquipment(Base):
     __tablename__ = "event_equipment"
     id = Column(Integer, primary_key=True, index=True)
     equipment_id = Column(Integer, ForeignKey("equipment.id"))
-    event_id = Column(Integer, ForeignKey("events.id"))
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"))
     issue_status = Column(String(50), nullable=False)
     issued_at = Column(TIMESTAMP, default=func.now())
