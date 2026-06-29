@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app import models, schemas, crud
+from app import models
 
 def init_db():
     db = SessionLocal()
@@ -12,7 +12,7 @@ def init_db():
 
         print("Добавление тестовых данных...")
 
-        # Добавляем организаторов
+        # --- Организаторы ---
         org1 = models.Organizer(
             full_name="Иванов Иван Иванович",
             phone="+7(999)123-45-67",
@@ -32,12 +32,9 @@ def init_db():
             position="Координатор"
         )
         db.add_all([org1, org2, org3])
-        db.commit()
-        db.refresh(org1)
-        db.refresh(org2)
-        db.refresh(org3)
+        db.flush()
 
-        # Добавляем участников
+        # --- Участники ---
         part1 = models.Participant(
             full_name="Смирнов Алексей Владимирович",
             phone="+7(900)111-22-33",
@@ -59,9 +56,9 @@ def init_db():
             role="Слушатель"
         )
         db.add_all([part1, part2, part3, part4])
-        db.commit()
+        db.flush()
 
-        # Добавляем мероприятия
+        # --- Мероприятия ---
         event1 = models.Event(
             name="Корпоративный семинар по SQL",
             event_type="Seminar",
@@ -87,39 +84,50 @@ def init_db():
             organizer_id=org3.id
         )
         db.add_all([event1, event2, event3])
-        db.commit()
-        db.refresh(event1)
-        db.refresh(event2)
-        db.refresh(event3)
+        db.flush()
 
-        # Добавляем семинар как наследника
+        # --- Создаём первую версию для каждого мероприятия ---
+        def create_first_version(event):
+            version = models.EventVersion(
+                event_id=event.id,
+                version_number=1,
+                description_text=event.description,
+                changed_by="system"
+            )
+            db.add(version)
+            db.flush()
+            event.current_version_id = version.id
+
+        create_first_version(event1)
+        create_first_version(event2)
+        create_first_version(event3)
+
+        # --- Наследники ---
         seminar = models.Seminar(
             event_id=event1.id,
             speaker="Доцент Смирнов А.И.",
             educational_points=16
         )
         db.add(seminar)
-        db.commit()
 
-        # Добавляем конференцию как наследника
         conference = models.Conference(
             event_id=event3.id,
             scientific_committee="Члены IEEE",
             deadline="2026-05-01"
         )
         db.add(conference)
-        db.commit()
 
-        # Добавляем корпоратив как наследника
         corporate = models.CorporateEvent(
             event_id=event2.id,
             entertainment_program="Квест, фуршет, дискотека",
             expected_guests=120
         )
         db.add(corporate)
-        db.commit()
 
+        # Фиксируем всё
+        db.commit()
         print("Тестовые данные успешно добавлены!")
+
     except Exception as e:
         print(f"Ошибка при инициализации БД: {e}")
         db.rollback()
