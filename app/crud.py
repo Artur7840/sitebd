@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 from app import models, schemas
+from typing import Optional
 
-# ----- Organizers (без изменений) -----
+# ----- Organizers -----
 def get_organizer(db: Session, organizer_id: int):
     return db.query(models.Organizer).filter(models.Organizer.id == organizer_id).first()
 
@@ -30,14 +31,23 @@ def delete_organizer(db: Session, organizer_id: int):
     db.query(models.Organizer).filter(models.Organizer.id == organizer_id).delete()
     db.commit()
 
-# ----- Events (упрощённый get_events и get_event) -----
+# ----- Events -----
 def get_event(db: Session, event_id: int):
-    # Простой запрос без подгрузки связей (чтобы исключить ошибки)
-    return db.query(models.Event).filter(models.Event.id == event_id).first()
+    return db.query(models.Event).filter(models.Event.id == event_id).options(
+        selectinload(models.Event.organizer),
+        selectinload(models.Event.children),
+        selectinload(models.Event.versions)
+    ).first()
 
 def get_events(db: Session, skip: int = 0, limit: int = 100):
-    # Простой запрос без join
-    return db.query(models.Event).offset(skip).limit(limit).all()
+    try:
+        return db.query(models.Event).offset(skip).limit(limit).options(
+            selectinload(models.Event.organizer),
+            selectinload(models.Event.children)
+        ).all()
+    except Exception as e:
+        print(f"Ошибка в get_events: {e}")
+        return db.query(models.Event).offset(skip).limit(limit).all()
 
 def create_event(db: Session, event: schemas.EventCreate):
     db_event = models.Event(**event.model_dump())
@@ -53,6 +63,7 @@ def create_event(db: Session, event: schemas.EventCreate):
     )
     db.add(first_version)
     db.flush()
+
     db_event.current_version_id = first_version.id
     db.commit()
     db.refresh(db_event)
@@ -65,6 +76,7 @@ def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
 
     old_description = db_event.description
     update_data = event_update.model_dump(exclude_unset=True)
+
     for key, value in update_data.items():
         setattr(db_event, key, value)
 
@@ -73,6 +85,7 @@ def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
             models.EventVersion.event_id == db_event.id
         ).order_by(models.EventVersion.version_number.desc()).first()
         next_version = (max_version.version_number + 1) if max_version else 1
+
         new_version = models.EventVersion(
             event_id=db_event.id,
             version_number=next_version,
@@ -81,15 +94,21 @@ def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
         )
         db.add(new_version)
         db.flush()
+
         db_event.current_version_id = new_version.id
 
     db.commit()
     db.refresh(db_event)
     return db_event
 
+# === ИСПРАВЛЕННАЯ ФУНКЦИЯ УДАЛЕНИЯ ===
 def delete_event(db: Session, event_id: int):
+    # Сначала удаляем все версии описания этого мероприятия
+    db.query(models.EventVersion).filter(models.EventVersion.event_id == event_id).delete()
+    # Теперь можно удалить само мероприятие
     db.query(models.Event).filter(models.Event.id == event_id).delete()
     db.commit()
+
 # ----- Seminars -----
 def get_seminar(db: Session, event_id: int):
     return db.query(models.Seminar).filter(models.Seminar.event_id == event_id).options(selectinload(models.Seminar.event)).first()
