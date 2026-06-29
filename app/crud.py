@@ -31,7 +31,7 @@ def delete_organizer(db: Session, organizer_id: int):
     db.query(models.Organizer).filter(models.Organizer.id == organizer_id).delete()
     db.commit()
 
-# ----- Events (с созданием версий) -----
+# ----- Events (с версионированием в одной транзакции) -----
 def get_event(db: Session, event_id: int):
     return db.query(models.Event).filter(models.Event.id == event_id).options(
         selectinload(models.Event.organizer),
@@ -46,13 +46,13 @@ def get_events(db: Session, skip: int = 0, limit: int = 100):
     ).all()
 
 def create_event(db: Session, event: schemas.EventCreate):
-    # Создаём мероприятие
+    # 1. Создаём мероприятие (без current_version_id)
     db_event = models.Event(**event.model_dump())
+    db_event.current_version_id = None
     db.add(db_event)
-    db.commit()
-    db.refresh(db_event)
+    db.flush()  # получаем id, но не фиксируем транзакцию
 
-    # Создаём первую версию описания
+    # 2. Создаём первую версию описания
     first_version = models.EventVersion(
         event_id=db_event.id,
         version_number=1,
@@ -60,14 +60,12 @@ def create_event(db: Session, event: schemas.EventCreate):
         changed_by="system"
     )
     db.add(first_version)
-    db.commit()
-    db.refresh(first_version)
+    db.flush()
 
-    # Обновляем ссылку на текущую версию
+    # 3. Обновляем ссылку на текущую версию
     db_event.current_version_id = first_version.id
     db.commit()
     db.refresh(db_event)
-
     return db_event
 
 def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
@@ -75,15 +73,12 @@ def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
     if not db_event:
         return None
 
-    # Проверяем, изменилось ли описание
     old_description = db_event.description
     update_data = event_update.model_dump(exclude_unset=True)
 
+    # Применяем изменения
     for key, value in update_data.items():
         setattr(db_event, key, value)
-
-    db.commit()
-    db.refresh(db_event)
 
     # Если описание изменилось, создаём новую версию
     if 'description' in update_data and update_data['description'] != old_description:
@@ -100,13 +95,12 @@ def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
             changed_by="system"
         )
         db.add(new_version)
-        db.commit()
-        db.refresh(new_version)
+        db.flush()
 
         db_event.current_version_id = new_version.id
-        db.commit()
-        db.refresh(db_event)
 
+    db.commit()
+    db.refresh(db_event)
     return db_event
 
 def delete_event(db: Session, event_id: int):
