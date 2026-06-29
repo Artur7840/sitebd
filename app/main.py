@@ -8,20 +8,20 @@ import os
 
 app = FastAPI(title="Event Management System", version="1.0")
 
-# Создание таблиц (если ещё не созданы)
+# Создание таблиц
 Base.metadata.create_all(bind=engine)
 
-# Заполнение тестовыми данными (если таблицы пусты)
+# Заполнение тестовыми данными
 init_db()
 
 # Подключаем API роутер
 app.include_router(routes.router, prefix="/api/v1")
 
-# Статика (если есть папка static)
+# Статика
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Корневой маршрут – отдаём index.html
+# Корневой маршрут
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     try:
