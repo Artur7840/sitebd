@@ -53,12 +53,11 @@ class Event(EventBase):
     updated_at: datetime
     current_version_id: Optional[int] = None
     organizer: Optional[Organizer] = None
-    children: List["Event"] = []
-    versions: List[EventVersion] = []
+    children: Optional[List["Event"]] = []     # теперь Optional
+    versions: Optional[List[EventVersion]] = [] # теперь Optional
 
     model_config = ConfigDict(from_attributes=True)
 
-# ---- Наследники ----
 class SeminarBase(BaseModel):
     event_id: int
     speaker: str
@@ -104,7 +103,6 @@ class CorporateEventUpdate(BaseModel):
 class CorporateEvent(CorporateEventBase):
     event: Optional[Event] = None
 
-# ---- Остальные ----
 class ParticipantBase(BaseModel):
     full_name: str
     phone: str
