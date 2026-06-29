@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 from app import models, schemas
 from typing import Optional
+from sqlalchemy import update
 
 # ----- Organizers -----
 def get_organizer(db: Session, organizer_id: int):
@@ -69,63 +70,70 @@ def create_event(db: Session, event: schemas.EventCreate):
     db.refresh(db_event)
     return db_event
 
+# === ИСПРАВЛЕННАЯ ФУНКЦИЯ ОБНОВЛЕНИЯ ===
 def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
+    # Проверяем, существует ли мероприятие
     db_event = get_event(db, event_id)
     if not db_event:
         return None
 
-    old_description = db_event.description
     update_data = event_update.model_dump(exclude_unset=True)
 
-    for key, value in update_data.items():
-        setattr(db_event, key, value)
+    # Запрещаем установку parent_id = самому себе
+    if 'parent_id' in update_data and update_data['parent_id'] == event_id:
+        raise ValueError("Нельзя установить мероприятие как своего родителя")
 
-    if 'description' in update_data and update_data['description'] != old_description:
+    # Если в обновлении есть parent_id, проверяем, не создаст ли это цикл (дополнительно)
+    # (можно добавить рекурсивную проверку, но для простоты пока только самоссылку)
+
+    # Если описание изменилось, создаём новую версию
+    if 'description' in update_data and update_data['description'] != db_event.description:
         max_version = db.query(models.EventVersion).filter(
-            models.EventVersion.event_id == db_event.id
+            models.EventVersion.event_id == event_id
         ).order_by(models.EventVersion.version_number.desc()).first()
         next_version = (max_version.version_number + 1) if max_version else 1
 
         new_version = models.EventVersion(
-            event_id=db_event.id,
+            event_id=event_id,
             version_number=next_version,
-            description_text=db_event.description,
+            description_text=update_data['description'],
             changed_by="system"
         )
         db.add(new_version)
         db.flush()
+        # Сохраняем current_version_id для последующего обновления
+        update_data['current_version_id'] = new_version.id
 
-        db_event.current_version_id = new_version.id
-
+    # Выполняем прямой UPDATE без ORM-каскадов
+    stmt = update(models.Event).where(models.Event.id == event_id).values(**update_data)
+    db.execute(stmt)
     db.commit()
-    db.refresh(db_event)
-    return db_event
+
+    # Возвращаем обновлённое мероприятие
+    return get_event(db, event_id)
 
 def delete_event(db: Session, event_id: int):
-    # 1. Найти все версии этого мероприятия
+    # Сначала удаляем все связанные записи
+    # Находим все версии этого мероприятия
     versions = db.query(models.EventVersion).filter(models.EventVersion.event_id == event_id).all()
     version_ids = [v.id for v in versions]
 
-    # 2. Обнулить current_version_id у всех мероприятий, которые ссылаются на эти версии
+    # Обнуляем current_version_id у всех мероприятий, которые ссылаются на эти версии
     if version_ids:
         db.query(models.Event).filter(models.Event.current_version_id.in_(version_ids)).update(
             {models.Event.current_version_id: None}, synchronize_session=False
         )
 
-    # 3. Удалить версии
+    # Удаляем версии
     db.query(models.EventVersion).filter(models.EventVersion.event_id == event_id).delete()
-
-    # 4. Удалить записи из других связанных таблиц
     db.query(models.Seminar).filter(models.Seminar.event_id == event_id).delete()
     db.query(models.Conference).filter(models.Conference.event_id == event_id).delete()
     db.query(models.CorporateEvent).filter(models.CorporateEvent.event_id == event_id).delete()
     db.query(models.EventParticipant).filter(models.EventParticipant.event_id == event_id).delete()
     db.query(models.Schedule).filter(models.Schedule.event_id == event_id).delete()
     db.query(models.EventEquipment).filter(models.EventEquipment.event_id == event_id).delete()
-
-    # 5. Удалить само мероприятие
+    # Удаляем само мероприятие
     db.query(models.Event).filter(models.Event.id == event_id).delete()
-
     db.commit()
 
 # ----- Seminars -----
