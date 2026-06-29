@@ -23,10 +23,8 @@ def get_event_tree_native(db: Session):
     """)
     try:
         result = db.execute(query)
-        # ✅ Правильное преобразование строк в словари
         rows = []
         for row in result:
-            # row._mapping даёт доступ к полям по имени, а dict() превращает в словарь
             rows.append(dict(row._mapping))
         return rows
     except Exception as e:
