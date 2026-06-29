@@ -31,7 +31,7 @@ def delete_organizer(db: Session, organizer_id: int):
     db.query(models.Organizer).filter(models.Organizer.id == organizer_id).delete()
     db.commit()
 
-# ----- Events (с версионированием в одной транзакции) -----
+# ----- Events -----
 def get_event(db: Session, event_id: int):
     return db.query(models.Event).filter(models.Event.id == event_id).options(
         selectinload(models.Event.organizer),
@@ -40,17 +40,22 @@ def get_event(db: Session, event_id: int):
     ).first()
 
 def get_events(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Event).offset(skip).limit(limit).options(
-        selectinload(models.Event.organizer),
-        selectinload(models.Event.children)
-    ).all()
+    try:
+        return db.query(models.Event).offset(skip).limit(limit).options(
+            selectinload(models.Event.organizer),
+            selectinload(models.Event.children)
+        ).all()
+    except Exception as e:
+        print(f"Ошибка в get_events: {e}")
+        # Возвращаем без подгрузки связанных данных, если ошибка
+        return db.query(models.Event).offset(skip).limit(limit).all()
 
 def create_event(db: Session, event: schemas.EventCreate):
-    # 1. Создаём мероприятие (без current_version_id)
+    # 1. Создаём мероприятие
     db_event = models.Event(**event.model_dump())
     db_event.current_version_id = None
     db.add(db_event)
-    db.flush()  # получаем id, но не фиксируем транзакцию
+    db.flush()
 
     # 2. Создаём первую версию описания
     first_version = models.EventVersion(
@@ -76,13 +81,10 @@ def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
     old_description = db_event.description
     update_data = event_update.model_dump(exclude_unset=True)
 
-    # Применяем изменения
     for key, value in update_data.items():
         setattr(db_event, key, value)
 
-    # Если описание изменилось, создаём новую версию
     if 'description' in update_data and update_data['description'] != old_description:
-        # Определяем следующий номер версии
         max_version = db.query(models.EventVersion).filter(
             models.EventVersion.event_id == db_event.id
         ).order_by(models.EventVersion.version_number.desc()).first()
