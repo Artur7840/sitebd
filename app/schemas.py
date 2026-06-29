@@ -47,14 +47,20 @@ class EventUpdate(BaseModel):
     organizer_id: Optional[int] = None
     parent_id: Optional[int] = None
 
-class Event(EventBase):
+# ----- Новая схема для списка (без children и versions) -----
+class EventBrief(EventBase):
     id: int
     created_at: datetime
     updated_at: datetime
     current_version_id: Optional[int] = None
     organizer: Optional[Organizer] = None
-    children: Optional[List["Event"]] = []     # теперь Optional
-    versions: Optional[List[EventVersion]] = [] # теперь Optional
+
+    model_config = ConfigDict(from_attributes=True)
+
+# ----- Полная схема (с children и versions, для одного мероприятия) -----
+class Event(EventBrief):
+    children: Optional[List["Event"]] = []
+    versions: Optional[List[EventVersion]] = []
 
     model_config = ConfigDict(from_attributes=True)
 
