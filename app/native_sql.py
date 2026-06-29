@@ -5,10 +5,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 def get_event_tree_native(db: Session):
-    """
-    Возвращает иерархическое дерево мероприятий.
-    Ограничение глубины – 100 уровней (защита от циклов).
-    """
     query = text("""
         WITH RECURSIVE event_tree AS (
             SELECT id, name, parent_id, 1 AS level
@@ -23,9 +19,21 @@ def get_event_tree_native(db: Session):
     """)
     try:
         result = db.execute(query)
+        # Преобразуем строки в словари безопасным способом
         rows = []
         for row in result:
-            rows.append(dict(row._mapping))
+            # Пробуем разные способы
+            if hasattr(row, '_mapping'):
+                rows.append(dict(row._mapping))
+            else:
+                # Если _mapping нет, используем метод _asdict() или преобразуем вручную
+                try:
+                    rows.append(dict(row))
+                except:
+                    # Если ничего не работает, создаём словарь из ключей
+                    keys = row.keys()
+                    rows.append({key: getattr(row, key) for key in keys})
+        logger.info(f"Запрос дерева вернул {len(rows)} строк")
         return rows
     except Exception as e:
         logger.error(f"Ошибка выполнения запроса дерева: {e}", exc_info=True)
@@ -39,7 +47,13 @@ def get_seminars_native(db: Session):
         JOIN seminars s ON e.id = s.event_id;
     """)
     result = db.execute(query)
-    return [dict(row._mapping) for row in result]
+    rows = []
+    for row in result:
+        if hasattr(row, '_mapping'):
+            rows.append(dict(row._mapping))
+        else:
+            rows.append(dict(row))
+    return rows
 
 def get_event_versions_native(db: Session, event_id: int):
     query = text("""
@@ -49,4 +63,10 @@ def get_event_versions_native(db: Session, event_id: int):
         ORDER BY version_number;
     """)
     result = db.execute(query, {"event_id": event_id})
-    return [dict(row._mapping) for row in result]
+    rows = []
+    for row in result:
+        if hasattr(row, '_mapping'):
+            rows.append(dict(row._mapping))
+        else:
+            rows.append(dict(row))
+    return rows
