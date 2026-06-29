@@ -38,7 +38,7 @@ def delete_organizer(organizer_id: int, db: Session = Depends(get_db)):
     crud.delete_organizer(db, organizer_id)
     return {"message": "Organizer deleted"}
 
-# ----- Events (с подробной обработкой ошибок) -----
+# ----- Events -----
 @router.post("/events/", response_model=schemas.Event)
 def create_event(event: schemas.EventCreate, db: Session = Depends(get_db)):
     try:
@@ -48,7 +48,7 @@ def create_event(event: schemas.EventCreate, db: Session = Depends(get_db)):
         logger.error(f"Ошибка создания мероприятия:\n{error_text}")
         raise HTTPException(status_code=500, detail=f"Ошибка создания: {str(e)}")
 
-@router.get("/events/", response_model=List[schemas.Event])
+@router.get("/events/", response_model=List[schemas.EventBrief])   # <-- ИСПРАВЛЕНО
 def list_events(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     try:
         events = crud.get_events(db, skip, limit)
