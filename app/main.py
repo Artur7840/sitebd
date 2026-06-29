@@ -3,12 +3,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from app.database import engine, Base
 from app.api import routes
+from app.init_db import init_db
 import os
 
 app = FastAPI(title="Event Management System", version="1.0")
 
+# Создание таблиц (если ещё не созданы)
 Base.metadata.create_all(bind=engine)
 
+# Заполнение тестовыми данными (если таблицы пусты)
+init_db()
+
+# Подключаем API роутер
 app.include_router(routes.router, prefix="/api/v1")
 
 # Статика (если есть папка static)
