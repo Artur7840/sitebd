@@ -4,6 +4,7 @@ from app.database import get_db
 from app import crud, schemas, services, native_sql
 from typing import List
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -37,22 +38,25 @@ def delete_organizer(organizer_id: int, db: Session = Depends(get_db)):
     crud.delete_organizer(db, organizer_id)
     return {"message": "Organizer deleted"}
 
-# ----- Events -----
+# ----- Events (с подробной обработкой ошибок) -----
 @router.post("/events/", response_model=schemas.Event)
 def create_event(event: schemas.EventCreate, db: Session = Depends(get_db)):
     try:
         return crud.create_event(db, event)
     except Exception as e:
-        logger.error(f"Ошибка создания мероприятия: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка создания мероприятия: {str(e)}")
+        error_text = traceback.format_exc()
+        logger.error(f"Ошибка создания мероприятия:\n{error_text}")
+        raise HTTPException(status_code=500, detail=f"Ошибка создания: {str(e)}")
 
 @router.get("/events/", response_model=List[schemas.Event])
 def list_events(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     try:
-        return crud.get_events(db, skip, limit)
+        events = crud.get_events(db, skip, limit)
+        return events
     except Exception as e:
-        logger.error(f"Ошибка загрузки мероприятий: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Ошибка загрузки мероприятий: {str(e)}")
+        error_text = traceback.format_exc()
+        logger.error(f"Ошибка загрузки мероприятий:\n{error_text}")
+        raise HTTPException(status_code=500, detail=f"Ошибка загрузки: {str(e)}")
 
 @router.get("/events/{event_id}", response_model=schemas.Event)
 def get_event(event_id: int, db: Session = Depends(get_db)):
@@ -69,7 +73,8 @@ def update_event(event_id: int, event_update: schemas.EventUpdate, db: Session =
             raise HTTPException(status_code=404, detail="Event not found")
         return event
     except Exception as e:
-        logger.error(f"Ошибка обновления мероприятия: {e}")
+        error_text = traceback.format_exc()
+        logger.error(f"Ошибка обновления мероприятия:\n{error_text}")
         raise HTTPException(status_code=500, detail=f"Ошибка обновления: {str(e)}")
 
 @router.delete("/events/{event_id}")
@@ -176,7 +181,8 @@ def get_event_tree(db: Session = Depends(get_db)):
     try:
         return services.EventService.get_event_tree(db)
     except Exception as e:
-        logger.error(f"Ошибка в /events/tree/: {e}", exc_info=True)
+        error_text = traceback.format_exc()
+        logger.error(f"Ошибка в /events/tree/:\n{error_text}")
         raise HTTPException(status_code=500, detail=f"Ошибка получения дерева: {str(e)}")
 
 # ----- Participants -----
