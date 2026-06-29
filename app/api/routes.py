@@ -40,11 +40,19 @@ def delete_organizer(organizer_id: int, db: Session = Depends(get_db)):
 # ----- Events -----
 @router.post("/events/", response_model=schemas.Event)
 def create_event(event: schemas.EventCreate, db: Session = Depends(get_db)):
-    return crud.create_event(db, event)
+    try:
+        return crud.create_event(db, event)
+    except Exception as e:
+        logger.error(f"Ошибка создания мероприятия: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка создания мероприятия: {str(e)}")
 
 @router.get("/events/", response_model=List[schemas.Event])
 def list_events(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.get_events(db, skip, limit)
+    try:
+        return crud.get_events(db, skip, limit)
+    except Exception as e:
+        logger.error(f"Ошибка загрузки мероприятий: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка загрузки мероприятий: {str(e)}")
 
 @router.get("/events/{event_id}", response_model=schemas.Event)
 def get_event(event_id: int, db: Session = Depends(get_db)):
@@ -55,17 +63,21 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
 
 @router.put("/events/{event_id}", response_model=schemas.Event)
 def update_event(event_id: int, event_update: schemas.EventUpdate, db: Session = Depends(get_db)):
-    event = crud.update_event(db, event_id, event_update)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    return event
+    try:
+        event = crud.update_event(db, event_id, event_update)
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+        return event
+    except Exception as e:
+        logger.error(f"Ошибка обновления мероприятия: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка обновления: {str(e)}")
 
 @router.delete("/events/{event_id}")
 def delete_event(event_id: int, db: Session = Depends(get_db)):
     crud.delete_event(db, event_id)
     return {"message": "Event deleted"}
 
-# ----- Seminars (наследование) -----
+# ----- Seminars -----
 @router.post("/seminars/", response_model=schemas.Seminar)
 def create_seminar(seminar: schemas.SeminarCreate, db: Session = Depends(get_db)):
     return crud.create_seminar(db, seminar)
@@ -93,7 +105,7 @@ def delete_seminar(event_id: int, db: Session = Depends(get_db)):
     crud.delete_seminar(db, event_id)
     return {"message": "Seminar deleted"}
 
-# ----- Conferences (наследование) -----
+# ----- Conferences -----
 @router.post("/conferences/", response_model=schemas.Conference)
 def create_conference(conf: schemas.ConferenceCreate, db: Session = Depends(get_db)):
     return crud.create_conference(db, conf)
@@ -121,7 +133,7 @@ def delete_conference(event_id: int, db: Session = Depends(get_db)):
     crud.delete_conference(db, event_id)
     return {"message": "Conference deleted"}
 
-# ----- Corporate Events (наследование) -----
+# ----- Corporate Events -----
 @router.post("/corporate_events/", response_model=schemas.CorporateEvent)
 def create_corporate_event(corp: schemas.CorporateEventCreate, db: Session = Depends(get_db)):
     return crud.create_corporate_event(db, corp)
@@ -149,17 +161,16 @@ def delete_corporate_event(event_id: int, db: Session = Depends(get_db)):
     crud.delete_corporate_event(db, event_id)
     return {"message": "Corporate event deleted"}
 
-# ----- Versions (ORM) -----
+# ----- Versions -----
 @router.get("/events/{event_id}/versions/")
 def get_event_versions(event_id: int, db: Session = Depends(get_db)):
     return crud.get_event_versions(db, event_id)
 
-# ----- Versions (Native SQL) -----
 @router.get("/events/{event_id}/versions-native/")
 def get_event_versions_native(event_id: int, db: Session = Depends(get_db)):
     return native_sql.get_event_versions_native(db, event_id)
 
-# ----- Tree (Hierarchy) -----
+# ----- Tree -----
 @router.get("/events/tree/")
 def get_event_tree(db: Session = Depends(get_db)):
     try:
