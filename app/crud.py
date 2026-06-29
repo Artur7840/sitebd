@@ -101,11 +101,17 @@ def update_event(db: Session, event_id: int, event_update: schemas.EventUpdate):
     db.refresh(db_event)
     return db_event
 
-# === ИСПРАВЛЕННАЯ ФУНКЦИЯ УДАЛЕНИЯ ===
+# === ИСПРАВЛЕННАЯ ФУНКЦИЯ УДАЛЕНИЯ (удаляет все связанные записи) ===
 def delete_event(db: Session, event_id: int):
-    # Сначала удаляем все версии описания этого мероприятия
+    # Удаляем записи из всех таблиц, которые ссылаются на событие
     db.query(models.EventVersion).filter(models.EventVersion.event_id == event_id).delete()
-    # Теперь можно удалить само мероприятие
+    db.query(models.Seminar).filter(models.Seminar.event_id == event_id).delete()
+    db.query(models.Conference).filter(models.Conference.event_id == event_id).delete()
+    db.query(models.CorporateEvent).filter(models.CorporateEvent.event_id == event_id).delete()
+    db.query(models.EventParticipant).filter(models.EventParticipant.event_id == event_id).delete()
+    db.query(models.Schedule).filter(models.Schedule.event_id == event_id).delete()
+    db.query(models.EventEquipment).filter(models.EventEquipment.event_id == event_id).delete()
+    # Теперь удаляем само мероприятие
     db.query(models.Event).filter(models.Event.id == event_id).delete()
     db.commit()
 
