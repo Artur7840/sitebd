@@ -124,7 +124,6 @@ def init_db():
         )
         db.add(corporate)
 
-        # Фиксируем всё
         db.commit()
         print("Тестовые данные успешно добавлены!")
 
