@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, TIMESTAMP, ForeignKey, Boolean, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, Date, TIMESTAMP, ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -9,18 +9,18 @@ class Organizer(Base):
     phone = Column(String(20), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     position = Column(String(100), nullable=False)
-    created_at = Column(TIMESTAMP, server_default="CURRENT_TIMESTAMP")
-    updated_at = Column(TIMESTAMP, server_default="CURRENT_TIMESTAMP", onupdate="CURRENT_TIMESTAMP")
+    created_at = Column(TIMESTAMP, default=func.now())
+    updated_at = Column(TIMESTAMP, default=func.now(), onupdate=func.now())
 
     events = relationship("Event", back_populates="organizer")
 
 class EventVersion(Base):
     __tablename__ = "event_versions"
     id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(Integer, ForeignKey("events.id", deferrable=True, initially="DEFERRED"), nullable=False)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
     version_number = Column(Integer, nullable=False)
     description_text = Column(Text, nullable=False)
-    changed_at = Column(TIMESTAMP, server_default="CURRENT_TIMESTAMP")
+    changed_at = Column(TIMESTAMP, default=func.now())
     changed_by = Column(String(100), default="system")
 
     __table_args__ = (UniqueConstraint("event_id", "version_number"),)
@@ -37,9 +37,9 @@ class Event(Base):
     status = Column(String(30), nullable=False)
     budget = Column(Integer, default=0)
     parent_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"))
-    current_version_id = Column(Integer, ForeignKey("event_versions.id", deferrable=True, initially="DEFERRED"))
-    created_at = Column(TIMESTAMP, server_default="CURRENT_TIMESTAMP")
-    updated_at = Column(TIMESTAMP, server_default="CURRENT_TIMESTAMP", onupdate="CURRENT_TIMESTAMP")
+    current_version_id = Column(Integer, ForeignKey("event_versions.id"))
+    created_at = Column(TIMESTAMP, default=func.now())
+    updated_at = Column(TIMESTAMP, default=func.now(), onupdate=func.now())
 
     organizer = relationship("Organizer", back_populates="events")
     parent = relationship("Event", remote_side=[id], backref="children")
@@ -76,7 +76,7 @@ class Participant(Base):
     full_name = Column(String(255), nullable=False)
     phone = Column(String(20), nullable=False)
     role = Column(String(50), nullable=False)
-    created_at = Column(TIMESTAMP, server_default="CURRENT_TIMESTAMP")
+    created_at = Column(TIMESTAMP, default=func.now())
 
 class EventParticipant(Base):
     __tablename__ = "event_participants"
@@ -117,4 +117,4 @@ class EventEquipment(Base):
     equipment_id = Column(Integer, ForeignKey("equipment.id"))
     event_id = Column(Integer, ForeignKey("events.id"))
     issue_status = Column(String(50), nullable=False)
-    issued_at = Column(TIMESTAMP, server_default="CURRENT_TIMESTAMP")
+    issued_at = Column(TIMESTAMP, default=func.now())
