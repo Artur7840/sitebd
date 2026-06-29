@@ -47,7 +47,7 @@ class EventUpdate(BaseModel):
     organizer_id: Optional[int] = None
     parent_id: Optional[int] = None
 
-# ----- Новая схема для списка (без children и versions) -----
+# ----- Краткая схема для списков (без children и versions) -----
 class EventBrief(EventBase):
     id: int
     created_at: datetime
@@ -57,13 +57,14 @@ class EventBrief(EventBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-# ----- Полная схема (с children и versions, для одного мероприятия) -----
+# ----- Полная схема (с children и versions) -----
 class Event(EventBrief):
     children: Optional[List["Event"]] = []
     versions: Optional[List[EventVersion]] = []
 
     model_config = ConfigDict(from_attributes=True)
 
+# ----- Наследники (используют EventBrief для избежания рекурсии) -----
 class SeminarBase(BaseModel):
     event_id: int
     speaker: str
@@ -77,7 +78,7 @@ class SeminarUpdate(BaseModel):
     educational_points: Optional[int] = None
 
 class Seminar(SeminarBase):
-    event: Optional[Event] = None
+    event: Optional[EventBrief] = None   # <-- ИСПРАВЛЕНО: EventBrief вместо Event
 
 class ConferenceBase(BaseModel):
     event_id: int
@@ -92,7 +93,7 @@ class ConferenceUpdate(BaseModel):
     deadline: Optional[date] = None
 
 class Conference(ConferenceBase):
-    event: Optional[Event] = None
+    event: Optional[EventBrief] = None   # <-- ИСПРАВЛЕНО: EventBrief вместо Event
 
 class CorporateEventBase(BaseModel):
     event_id: int
@@ -107,8 +108,9 @@ class CorporateEventUpdate(BaseModel):
     expected_guests: Optional[int] = None
 
 class CorporateEvent(CorporateEventBase):
-    event: Optional[Event] = None
+    event: Optional[EventBrief] = None   # <-- ИСПРАВЛЕНО: EventBrief вместо Event
 
+# ----- Остальные схемы -----
 class ParticipantBase(BaseModel):
     full_name: str
     phone: str
